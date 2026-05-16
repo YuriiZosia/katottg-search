@@ -1,0 +1,6 @@
+*code-workspace
+*.vscode/*
+*.pyc
+__pycache__/
+data_*.js
+*.xlsx
