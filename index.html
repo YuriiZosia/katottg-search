@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пошук КАТОТТГ | YCsys</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        /* Сучасний інпут і кнопка */
+        .search-wrapper {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            background: var(--surface);
+            padding: 8px;
+        }
+
+        .search-input {
+            flex-grow: 1;
+            border: none;
+            outline: none;
+            padding: 16px 20px;
+            font-size: 1.1rem;
+            background: transparent;
+            color: var(--text);
+        }
+
+        .search-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .search-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Блок управління результатами */
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            display: none; /* Приховано до пошуку */
+        }
+
+        .copy-btn {
+            background-color: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Картки результатів */
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result-card {
+            background: var(--surface);
+            padding: 16px 20px;
+            border-radius: 10px;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            font-size: 1.05rem;
+            line-height: 1.5;
+            transition: transform 0.1s;
+        }
+
+        .result-card:hover {
+            transform: translateX(4px);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 2rem;
+            font-size: 1.1rem;
+        }
+
+        /* Підпис YCsys */
+        .footer {
+            margin-top: 4rem;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Пошук за КАТОТТГ</h1>
+        </div>
+
+        <div class="search-wrapper">
+            <input type="text" id="searchInput" class="search-input" placeholder="Введіть назву населеного пункту (напр. Вільне)...">
+            <button id="searchBtn" class="search-btn">Знайти</button>
+        </div>
+
+        <div class="results-header" id="resultsHeader">
+            <span style="color: var(--text-muted);" id="resultsCount">Знайдено: 0</span>
+            <button class="copy-btn" id="copyBtn">📋 Скопіювати як масив рядків</button>
+        </div>
+
+        <div class="results" id="resultsContainer">
+            </div>
+
+        <div class="footer">
+            Yurii Code system (YCsys) © 2026. Код, що працює, а не існує.
+        </div>
+    </div>
+
+    <script>
+        // Демонстраційний масив. 
+        
+        const katottgData = [
+            ["Дніпропетровська", "Новомосковський", "Вільненська", "сільська", "с.", "Вільне"],
+            ["Київська", "Фастівський", "Томашівська", "сільська", "с.", "Вільне"],
+            ["Львівська", "Львівський", "Львівська", "міська", "м.", "Львів"],
+            ["Київ", "", "Київська", "міська", "м.", "Київ"]
+        ];
+
+        // Змінна для зберігання знайдених відформатованих рядків
+        let currentStringResults = [];
+
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsHeader = document.getElementById('resultsHeader');
+        const resultsCount = document.getElementById('resultsCount');
+        const copyBtn = document.getElementById('copyBtn');
+
+        function formatRecord(record) {
+            const [obl, ray, hrom, typeHrom, typeNp, np] = record;
+            let result = `${obl} область, `;
+            if (ray) result += `${ray} район, `;
+            result += `${hrom} ${typeHrom} територіальна громада, ${typeNp} ${np}`;
+            
+            // Забираємо слово "область" для міст зі спецстатусом типу Києва
+            if (obl === "Київ" || obl === "Севастополь") {
+                result = result.replace(obl + " область, ", obl + ", ");
+            }
+            return result;
+        }
+
+        function performSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            resultsContainer.innerHTML = '';
+            currentStringResults = [];
+
+            if (!query) {
+                resultsHeader.style.display = 'none';
+                return;
+            }
+
+            // Пошук по плоскому масиву
+            const matches = katottgData.filter(row => row[5].toLowerCase() === query);
+
+            if (matches.length === 0) {
+                resultsHeader.style.display = 'none';
+                resultsContainer.innerHTML = '<div class="empty-state">Нічого не знайдено 🕵️‍♂️</div>';
+                return;
+            }
+
+            resultsHeader.style.display = 'flex';
+            resultsCount.textContent = `Знайдено: ${matches.length}`;
+
+            matches.forEach(match => {
+                const formattedStr = formatRecord(match);
+                currentStringResults.push(formattedStr);
+
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.innerHTML = `<span>${formattedStr}</span>`;
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        // Обробники подій
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        // Кнопка копіювання масиву
+        copyBtn.addEventListener('click', () => {
+            // Формуємо красивий JS/JSON масив для копіювання
+            const textToCopy = JSON.stringify(currentStringResults, null, 4);
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.innerText;
+                copyBtn.innerText = "✅ Скопійовано!";
+                copyBtn.style.borderColor = "green";
+                copyBtn.style.color = "green";
+                
+                setTimeout(() => {
+                    copyBtn.innerText = originalText;
+                    copyBtn.style.borderColor = "var(--border)";
+                    copyBtn.style.color = "var(--text)";
+                }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>
