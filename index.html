@@ -67,9 +67,17 @@
         padding: 8px;
       }
 
+      /* ДОДАНО: Стилі для обгортки автокомпліту */
+      .autocomplete-wrapper {
+        position: relative;
+        flex-grow: 1;
+        display: flex;
+      }
+
       .search-input {
         box-shadow: inset 0 0 0 1px var(--border);
         flex-grow: 1;
+        width: 100%; /* Щоб інпут займав всю ширину обгортки */
         border: none;
         outline: none;
         padding: 16px 20px;
@@ -77,6 +85,7 @@
         background: transparent;
         color: var(--text);
         border-radius: 8px;
+        box-sizing: border-box;
       }
 
       .search-input:focus {
@@ -99,7 +108,41 @@
         background-color: var(--primary-hover);
       }
 
-      /* Оновлений блок управління результатами */
+      /* ДОДАНО: Стилі випадаючого списку */
+      .autocomplete-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        z-index: 99;
+        margin-top: 5px;
+        padding: 0;
+        list-style: none;
+        max-height: 250px;
+        overflow-y: auto;
+        display: none;
+      }
+
+      .autocomplete-list li {
+        padding: 12px 20px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+        transition: background-color 0.2s;
+      }
+
+      .autocomplete-list li:last-child {
+        border-bottom: none;
+      }
+
+      .autocomplete-list li:hover {
+        background-color: var(--bg);
+        color: var(--primary);
+      }
+
       .results-header {
         display: flex;
         justify-content: space-between;
@@ -129,7 +172,8 @@
         transition: border-color 0.2s;
       }
 
-      .region-filter:hover, .region-filter:focus {
+      .region-filter:hover,
+      .region-filter:focus {
         border-color: var(--primary);
       }
 
@@ -228,26 +272,30 @@
           Кодифікатором адміністративно-територіальних одиниць та територій
           територіальних громад (КАТОТТГ).
         </p>
-        
+
         <a href="https://yuriizosia.github.io/DeclensionUkrainianAnthroponyms/" target="_blank" class="extra-tool-link">
           💡 Також спробуйте: Відмінювання Прізвища, Ім'я та По батькові (ПІБ)
         </a>
       </div>
 
       <div class="search-wrapper">
-        <input
-          type="text"
-          id="searchInput"
-          class="search-input"
-          placeholder="Введіть назву населеного пункту (напр. Вільне)..."
-        />
+        <!-- Обгортка для автокомпліту -->
+        <div class="autocomplete-wrapper">
+          <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="Введіть назву населеного пункту (напр. Вільне)..."
+            autocomplete="off"
+          />
+          <ul id="autocompleteList" class="autocomplete-list"></ul>
+        </div>
         <button id="searchBtn" class="search-btn">Знайти</button>
       </div>
 
       <div class="results-header" id="resultsHeader">
         <div class="results-stats">
           <span style="color: var(--text-muted)" id="resultsCount">Знайдено: 0</span>
-          <!-- Додано селект для фільтрації -->
           <select id="regionFilter" class="region-filter">
             <option value="">Всі області</option>
           </select>
@@ -265,8 +313,9 @@
     </div>
 
     <script>
-      let currentMatches = []; // Зберігаємо всі знайдені співпадіння
-      let currentStringResults = []; // Зберігаємо рядки для копіювання
+      let currentMatches = [];
+      let currentStringResults = [];
+      let debounceTimer;
 
       const searchInput = document.getElementById("searchInput");
       const searchBtn = document.getElementById("searchBtn");
@@ -275,10 +324,74 @@
       const resultsCount = document.getElementById("resultsCount");
       const copyBtn = document.getElementById("copyBtn");
       const regionFilter = document.getElementById("regionFilter");
+      const autocompleteList = document.getElementById("autocompleteList");
 
+      // --- ЛОГІКА АВТОКОМПЛІТУ ---
+      function closeAutocomplete() {
+        autocompleteList.style.display = "none";
+        autocompleteList.innerHTML = "";
+      }
+
+      searchInput.addEventListener("input", function () {
+        clearTimeout(debounceTimer);
+        const query = this.value.trim().toLowerCase().replace("'", "’");
+
+        if (query.length < 3) {
+          closeAutocomplete();
+          return;
+        }
+
+        debounceTimer = setTimeout(() => {
+          const uniqueNames = new Set();
+          const suggestions = [];
+
+          for (let i = 0; i < katottgData.length; i++) {
+            const name = katottgData[i][5];
+            const nameLower = name.toLowerCase();
+
+            if (nameLower.startsWith(query)) {
+              if (!uniqueNames.has(name)) {
+                uniqueNames.add(name);
+                suggestions.push(name);
+                if (suggestions.length >= 10) break;
+              }
+            }
+          }
+
+          if (suggestions.length > 0) {
+            autocompleteList.innerHTML = "";
+            suggestions.forEach((name) => {
+              const li = document.createElement("li");
+              const matchLength = query.length;
+              const matchedPart = name.substring(0, matchLength);
+              const restPart = name.substring(matchLength);
+
+              li.innerHTML = `<strong>${matchedPart}</strong>${restPart}`;
+
+              li.addEventListener("click", () => {
+                searchInput.value = name;
+                closeAutocomplete();
+                performSearch(); 
+              });
+
+              autocompleteList.appendChild(li);
+            });
+            autocompleteList.style.display = "block";
+          } else {
+            closeAutocomplete();
+          }
+        }, 300);
+      });
+
+      document.addEventListener("click", (e) => {
+        if (e.target !== searchInput && e.target !== autocompleteList) {
+          closeAutocomplete();
+        }
+      });
+
+      // --- ЛОГІКА ПОШУКУ ТА ВІДМАЛЬОВКИ ---
       function formatRecord(record) {
         const [oblIdx, rayIdx, hromIdx, hromTypeIdx, npTypeIdx, np] = record;
-
         const obl = regions[oblIdx];
         const ray = districts[rayIdx];
         const hrom = hromadas[hromIdx];
@@ -295,36 +408,31 @@
         return result;
       }
 
-      // Функція для оновлення списку областей у фільтрі
       function updateRegionFilter(matches) {
-        const uniqueRegionIndices = [...new Set(matches.map(m => m[0]))];
-        const uniqueRegions = uniqueRegionIndices.map(idx => regions[idx]).sort();
-        
+        const uniqueRegionIndices = [...new Set(matches.map((m) => m[0]))];
+        const uniqueRegions = uniqueRegionIndices.map((idx) => regions[idx]).sort();
         const currentSelection = regionFilter.value;
 
         regionFilter.innerHTML = '<option value="">Всі області</option>';
-        uniqueRegions.forEach(regionName => {
-          const option = document.createElement('option');
+        uniqueRegions.forEach((regionName) => {
+          const option = document.createElement("option");
           option.value = regionName;
           option.textContent = regionName;
           regionFilter.appendChild(option);
         });
 
-        // Якщо попередня обрана область є в новому списку — залишаємо її
         if (uniqueRegions.includes(currentSelection)) {
           regionFilter.value = currentSelection;
         }
       }
 
-      // Окрема функція для відмальовування результатів (з урахуванням фільтра)
       function renderResults() {
         resultsContainer.innerHTML = "";
         currentStringResults = [];
 
         const selectedRegion = regionFilter.value;
-
-        const filteredMatches = selectedRegion 
-          ? currentMatches.filter(m => regions[m[0]] === selectedRegion)
+        const filteredMatches = selectedRegion
+          ? currentMatches.filter((m) => regions[m[0]] === selectedRegion)
           : currentMatches;
 
         resultsCount.textContent = `Знайдено: ${filteredMatches.length}`;
@@ -367,8 +475,9 @@
       }
 
       function performSearch() {
+        closeAutocomplete(); // Закриваємо список підказок при натисканні "Знайти"
         const query = searchInput.value.trim().toLowerCase().replace("'", "’");
-        
+
         if (!query) {
           resultsHeader.style.display = "none";
           resultsContainer.innerHTML = "";
@@ -376,34 +485,30 @@
         }
 
         currentMatches = katottgData.filter(
-          (row) => row[5].toLowerCase() === query,
+          (row) => row[5].toLowerCase() === query
         );
 
         if (currentMatches.length === 0) {
           resultsHeader.style.display = "none";
-          resultsContainer.innerHTML =
-            '<div class="empty-state">Нічого не знайдено 🕵️‍♂️</div>';
+          resultsContainer.innerHTML = '<div class="empty-state">Нічого не знайдено 🕵️‍♂️</div>';
           return;
         }
 
         resultsHeader.style.display = "flex";
-        
         updateRegionFilter(currentMatches);
         renderResults();
       }
 
       searchBtn.addEventListener("click", performSearch);
+      
       searchInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") performSearch();
       });
-      
-      // Слухач на зміну області у випадаючому списку
+
       regionFilter.addEventListener("change", renderResults);
 
       copyBtn.addEventListener("click", () => {
-        // Копіюємо тільки те, що зараз відфільтровано та на екрані
         const textToCopy = currentStringResults.join("\n");
-
         navigator.clipboard.writeText(textToCopy).then(() => {
           const originalText = copyBtn.innerText;
           copyBtn.innerText = "✅ Скопійовано!";
