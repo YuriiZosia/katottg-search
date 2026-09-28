@@ -39,7 +39,6 @@
         margin-bottom: 2rem;
       }
 
-      /* Стиль для посилання на інший проект */
       .extra-tool-link {
         display: inline-block;
         margin-top: 10px;
@@ -58,7 +57,6 @@
         transform: translateY(-1px);
       }
 
-      /* Сучасний інпут і кнопка */
       .search-wrapper {
         display: flex;
         gap: 10px;
@@ -78,10 +76,9 @@
         font-size: 1.1rem;
         background: transparent;
         color: var(--text);
-        border-radius: 8px; /* Додав скруглення для гармонії з box-shadow */
+        border-radius: 8px;
       }
 
-      /* Легке підсвічування при фокусі */
       .search-input:focus {
         box-shadow: inset 0 0 0 2px var(--primary);
       }
@@ -102,13 +99,38 @@
         background-color: var(--primary-hover);
       }
 
-      /* Блок управління результатами */
+      /* Оновлений блок управління результатами */
       .results-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 1rem;
-        display: none; /* Приховано до пошуку */
+        display: none;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .results-stats {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .region-filter {
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background-color: var(--surface);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .region-filter:hover, .region-filter:focus {
+        border-color: var(--primary);
       }
 
       .copy-btn {
@@ -127,7 +149,6 @@
         color: var(--primary);
       }
 
-      /* Картки результатів */
       .results {
         display: flex;
         flex-direction: column;
@@ -152,7 +173,6 @@
         transform: translateX(4px);
       }
 
-      /* Контейнер для іконки */
       .result-icon-wrapper {
         display: flex;
         align-items: center;
@@ -169,7 +189,6 @@
         background-color: var(--bg);
       }
 
-      /* Контейнер для тексту результату */
       .result-text-wrapper {
         flex-grow: 1;
       }
@@ -181,7 +200,6 @@
         font-size: 1.1rem;
       }
 
-      /* Підпис YCsys та посилання у футері */
       .footer {
         margin-top: 4rem;
         text-align: center;
@@ -208,9 +226,7 @@
           Швидкий, легкий та сучасний веб-інструмент для миттєвого пошуку повної
           інформації про населені пункти України згідно з офіційним
           Кодифікатором адміністративно-територіальних одиниць та територій
-          територіальних громад (КАТОТТГ). Просто введіть назву населеного
-          пункту, і отримаєте повний опис його розташування та адміністративного
-          статусу.
+          територіальних громад (КАТОТТГ).
         </p>
         
         <a href="https://yuriizosia.github.io/DeclensionUkrainianAnthroponyms/" target="_blank" class="extra-tool-link">
@@ -229,7 +245,13 @@
       </div>
 
       <div class="results-header" id="resultsHeader">
-        <span style="color: var(--text-muted)" id="resultsCount">Знайдено: 0</span>
+        <div class="results-stats">
+          <span style="color: var(--text-muted)" id="resultsCount">Знайдено: 0</span>
+          <!-- Додано селект для фільтрації -->
+          <select id="regionFilter" class="region-filter">
+            <option value="">Всі області</option>
+          </select>
+        </div>
         <button class="copy-btn" id="copyBtn">📋 Скопіювати всі рядки</button>
       </div>
 
@@ -243,7 +265,8 @@
     </div>
 
     <script>
-      let currentStringResults = [];
+      let currentMatches = []; // Зберігаємо всі знайдені співпадіння
+      let currentStringResults = []; // Зберігаємо рядки для копіювання
 
       const searchInput = document.getElementById("searchInput");
       const searchBtn = document.getElementById("searchBtn");
@@ -251,6 +274,7 @@
       const resultsHeader = document.getElementById("resultsHeader");
       const resultsCount = document.getElementById("resultsCount");
       const copyBtn = document.getElementById("copyBtn");
+      const regionFilter = document.getElementById("regionFilter");
 
       function formatRecord(record) {
         const [oblIdx, rayIdx, hromIdx, hromTypeIdx, npTypeIdx, np] = record;
@@ -271,31 +295,46 @@
         return result;
       }
 
-      function performSearch() {
-        const query = searchInput.value.trim().toLowerCase().replace("'", "’");
+      // Функція для оновлення списку областей у фільтрі
+      function updateRegionFilter(matches) {
+        const uniqueRegionIndices = [...new Set(matches.map(m => m[0]))];
+        const uniqueRegions = uniqueRegionIndices.map(idx => regions[idx]).sort();
+        
+        const currentSelection = regionFilter.value;
+
+        regionFilter.innerHTML = '<option value="">Всі області</option>';
+        uniqueRegions.forEach(regionName => {
+          const option = document.createElement('option');
+          option.value = regionName;
+          option.textContent = regionName;
+          regionFilter.appendChild(option);
+        });
+
+        // Якщо попередня обрана область є в новому списку — залишаємо її
+        if (uniqueRegions.includes(currentSelection)) {
+          regionFilter.value = currentSelection;
+        }
+      }
+
+      // Окрема функція для відмальовування результатів (з урахуванням фільтра)
+      function renderResults() {
         resultsContainer.innerHTML = "";
         currentStringResults = [];
 
-        if (!query) {
-          resultsHeader.style.display = "none";
+        const selectedRegion = regionFilter.value;
+
+        const filteredMatches = selectedRegion 
+          ? currentMatches.filter(m => regions[m[0]] === selectedRegion)
+          : currentMatches;
+
+        resultsCount.textContent = `Знайдено: ${filteredMatches.length}`;
+
+        if (filteredMatches.length === 0 && currentMatches.length > 0) {
+          resultsContainer.innerHTML = '<div class="empty-state">У цій області нічого не знайдено 🕵️‍♂️</div>';
           return;
         }
 
-        const matches = katottgData.filter(
-          (row) => row[5].toLowerCase() === query,
-        );
-
-        if (matches.length === 0) {
-          resultsHeader.style.display = "none";
-          resultsContainer.innerHTML =
-            '<div class="empty-state">Нічого не знайдено 🕵️‍♂️</div>';
-          return;
-        }
-
-        resultsHeader.style.display = "flex";
-        resultsCount.textContent = `Знайдено: ${matches.length}`;
-
-        matches.forEach((match) => {
+        filteredMatches.forEach((match) => {
           const formattedStr = formatRecord(match);
           currentStringResults.push(formattedStr);
 
@@ -327,12 +366,42 @@
         });
       }
 
+      function performSearch() {
+        const query = searchInput.value.trim().toLowerCase().replace("'", "’");
+        
+        if (!query) {
+          resultsHeader.style.display = "none";
+          resultsContainer.innerHTML = "";
+          return;
+        }
+
+        currentMatches = katottgData.filter(
+          (row) => row[5].toLowerCase() === query,
+        );
+
+        if (currentMatches.length === 0) {
+          resultsHeader.style.display = "none";
+          resultsContainer.innerHTML =
+            '<div class="empty-state">Нічого не знайдено 🕵️‍♂️</div>';
+          return;
+        }
+
+        resultsHeader.style.display = "flex";
+        
+        updateRegionFilter(currentMatches);
+        renderResults();
+      }
+
       searchBtn.addEventListener("click", performSearch);
       searchInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") performSearch();
       });
+      
+      // Слухач на зміну області у випадаючому списку
+      regionFilter.addEventListener("change", renderResults);
 
       copyBtn.addEventListener("click", () => {
+        // Копіюємо тільки те, що зараз відфільтровано та на екрані
         const textToCopy = currentStringResults.join("\n");
 
         navigator.clipboard.writeText(textToCopy).then(() => {
